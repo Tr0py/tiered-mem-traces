@@ -23,23 +23,6 @@ M 04038e10,4
 
 Total: 97 MB compressed (~4 GB uncompressed).
 
-## Usage with arcsim
-
-Extract just the addresses for `--raw-trace`:
-
-```bash
-zcat stream.Add.bytes.trace.gz | awk '{print $2}' | cut -d, -f1 | arcsim --raw-trace - --capacity 1024 --model cost --behavior 2q-ac-gd-dist-lin
-```
-
-Or simulate all traces:
-
-```bash
-for trace in *.bytes.trace.gz; do
-    echo "=== $trace ==="
-    zcat "$trace" | awk '{print $2}' | cut -d, -f1 | arcsim --raw-trace - --capacity 1024 --model cost --behavior 2q-ac-gd-dist-lin
-done
-```
-
 ## Traces (60 total, by suite)
 
 | Trace | Description | Access Pattern | Size |
