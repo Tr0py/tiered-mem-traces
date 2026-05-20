@@ -2,7 +2,9 @@
 
 **60 memory access traces** for tiered-memory simulation, covering all 16
 benchmark suites of the [CMU-SAFARI/DAMOV](https://github.com/CMU-SAFARI/DAMOV)
-suite. Each trace preserves load/store/modify classification from
+suite, plus **1 LLM-inference trace** collected from llama2.c (under
+`llama_inference/`, Git LFS — see § LLM-inference trace).
+Each trace preserves load/store/modify classification from
 [Valgrind's lackey tool](https://valgrind.org/docs/manual/lk-manual.html).
 
 ## Format
@@ -103,6 +105,67 @@ Total: 97 MB compressed (~4 GB uncompressed).
 | `stream.Copy` | c[i] = a[i] | perfectly sequential streaming, no reuse | 3.5M |
 | `stream.Scale` | b[i] = scalar * c[i] | perfectly sequential streaming, no reuse | 3.5M |
 | `stream.Triad` | a[i] = b[i] + scalar * c[i] | perfectly sequential streaming, no reuse | 3.5M |
+
+## LLM-inference trace
+
+One extra trace lives under `llama_inference/` and is stored via **Git LFS**
+(the file is ~318 MB compressed). It is **not** part of the 60-trace DAMOV
+set above — different workload class, different scale.
+
+| Trace | Description | Access pattern | Size |
+|-------|-------------|----------------|-----:|
+| `llama_inference/llama2c_stories15M_n3` | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) inference, TinyStories-15M architecture (dim=288, hidden=768, 6 layers, vocab=32000), `n=3` forward passes (BOS prefill + 2 generated tokens, seed=42), random `N(0, 0.02)` weights — memory pattern is determined by tensor shapes and access order, not weight values, so it is structurally identical to a real TinyStories-15M checkpoint | continuous hot scratchpad (RunState) + linear weight-tensor sweeps + KV-cache growth per generated token | 318M |
+
+Collection scale: 144,403,187 data accesses, 15,713 unique 4 KiB pages
+(61.4 MiB footprint), captured under
+`valgrind --tool=lackey --trace-mem=yes` with instruction fetches filtered
+out. Loads 86.9 %, stores 13.0 %, modifies 0.1 %.
+
+### Access pattern (annotated)
+
+![llama2c stories15M, n=3 annotated VA](docs/llama_inference/llama2c_stories15M_n3_annotated.png)
+
+The y-axis is the actual virtual address (stack at 131 GiB excluded — 3
+pages absorbing 13.9 % of all accesses). Region boundaries are ground
+truth from `/proc/self/maps` plus an instrumented `run.c` that printed
+every weight / RunState / KV pointer under valgrind. Three forward passes
+are visible as three structurally identical segments (dotted vertical
+guides at ~46 M / ~84 M / ~122 M accesses):
+
+- **64–66 MiB — HEAP / RunState scratchpad.** A continuous horizontal band
+  touched throughout every pass. Holds `x`, `xb`, `xb2`, `q`, `att`,
+  `logits` and other activation buffers. ~11 pages absorb ~50 % of the
+  full trace's traffic; even with stack excluded, ~63 pages cover 50 % of
+  the remaining accesses.
+- **75–110 MiB — `wcls` / `token_embedding` classifier sweep.** The large
+  diagonal climbing once per pass is the final `logits = matmul(x, wcls)`
+  projection against the 32,000-entry vocabulary (`wcls` is shared with
+  `token_embedding_table`). A 36.6 MiB linear scan at the end of every
+  forward pass.
+- **110–134 MiB — per-layer weight matmuls.** The "rainfall" pattern is
+  six layers' worth of `wq`, `wk`, `wv`, `wo`, `w1`, `w2`, `w3` sweeps.
+  Each cold weight page is touched once per forward pass.
+- **133–137 MiB — KV cache.** `key_cache` + `value_cache` (3.4 MiB total).
+  Pass 1 is pure stores; passes 2 and 3 have growing reads as the
+  attention softmax iterates over an increasing number of KV slots.
+- **131 GiB — stack (filtered in the figure).** 3 pages, 13.9 % of all
+  accesses; valgrind redirects the user stack to the top of its managed
+  address space.
+
+The combination of a tiny continuously-hot scratchpad and a large
+once-per-pass cold-weight sweep is the canonical heavy-tailed access
+pattern of LLM inference: cache-policy choice barely matters at small
+cache sizes because the hot set fits in any cache and the cold weight
+scan is unaffected by eviction order.
+
+### Reproducing
+
+The collection pipeline (random-weight `model.bin` generator, valgrind
+lackey wrapper, analyzer, plotter) lives in the arcsim repo:
+[`scripts/llama_traces/`](https://github.com/alcriceedu/arcsim/tree/main/scripts/llama_traces).
+See `scripts/llama_traces/README.md` for the full repro recipe and
+`scripts/llama_traces/REPORT_stories15M.md` for the original
+characterization run.
 
 ## How Traces Were Collected
 
