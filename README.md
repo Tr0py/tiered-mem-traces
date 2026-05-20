@@ -109,17 +109,17 @@ Total: 97 MB compressed (~4 GB uncompressed).
 ## LLM-inference trace
 
 One extra trace lives under `llama_inference/` and is stored via **Git LFS**
-(the file is ~318 MB compressed). It is **not** part of the 60-trace DAMOV
+(the file is ~323 MB compressed). It is **not** part of the 60-trace DAMOV
 set above — different workload class, different scale.
 
 | Trace | Description | Access pattern | Size |
 |-------|-------------|----------------|-----:|
-| `llama_inference/llama2c_stories15M_n3` | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) inference, TinyStories-15M architecture (dim=288, hidden=768, 6 layers, vocab=32000), `n=3` forward passes (BOS prefill + 2 generated tokens, seed=42), random `N(0, 0.02)` weights — memory pattern is determined by tensor shapes and access order, not weight values, so it is structurally identical to a real TinyStories-15M checkpoint | continuous hot scratchpad (RunState) + linear weight-tensor sweeps + KV-cache growth per generated token | 318M |
+| `llama_inference/llama2c_stories15M_n3` | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) inference, TinyStories-15M architecture (dim=288, hidden=768, 6 layers, vocab=32000), `n=3` forward passes (BOS prefill + 2 generated tokens, seed=42), random `N(0, 0.02)` weights — memory pattern is determined by tensor shapes and access order, not weight values, so it is structurally identical to a real TinyStories-15M checkpoint | continuous hot scratchpad (RunState) + linear weight-tensor sweeps + KV-cache growth per generated token | 323M |
 
-Collection scale: 144,403,187 data accesses, 15,713 unique 4 KiB pages
+Collection scale: 144,868,169 data accesses, 15,709 unique 4 KiB pages
 (61.4 MiB footprint), captured under
 `valgrind --tool=lackey --trace-mem=yes` with instruction fetches filtered
-out. Loads 86.9 %, stores 13.0 %, modifies 0.1 %.
+out. Loads 85.8 %, stores 13.7 %, modifies 0.4 %.
 
 ### Access pattern (annotated)
 
