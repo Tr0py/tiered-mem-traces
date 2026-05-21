@@ -1,0 +1,8 @@
+name: gapbs.PageRank
+cmd: /home/ziyi/git/arcsim/memtis-traces/src/gapbs/pr -g 17 -n 100
+max_lines: 200000000
+wall_cap_secs: 1800
+elapsed_secs: 1643
+lines: 200000000
+gz_bytes: 360371006
+rc: 139

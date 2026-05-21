@@ -1,0 +1,8 @@
+name: ycsb_kv_A
+cmd: /home/ziyi/git/arcsim/memtis-traces/bench-src/ycsb_kv/ycsb_kv 1000000 20000000 50 zipf 0.99
+max_lines: 200000000
+wall_cap_secs: 1800
+elapsed_secs: 580
+lines: 200000000
+gz_bytes: 149339962
+rc: 141
