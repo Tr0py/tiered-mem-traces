@@ -1,0 +1,8 @@
+name: graph500_bfs
+cmd: /home/ziyi/git/arcsim/memtis-traces/src/graph500/src/graph500_reference_bfs 17
+max_lines: 200000000
+wall_cap_secs: 1800
+elapsed_secs: 1170
+lines: 200000000
+gz_bytes: 65387492
+rc: 141

@@ -1,0 +1,8 @@
+name: xsbench
+cmd: /home/ziyi/git/arcsim/memtis-traces/src/XSBench/openmp-threading/XSBench -s small -t 1 -p 5000 -l 100 -g 5000
+max_lines: 200000000
+wall_cap_secs: 1800
+elapsed_secs: 503
+lines: 200000000
+gz_bytes: 320355619
+rc: 141

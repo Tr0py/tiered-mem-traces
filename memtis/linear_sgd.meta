@@ -1,0 +1,8 @@
+name: linear_sgd
+cmd: /home/ziyi/git/arcsim/memtis-traces/bench-src/linear_sgd/linear_sgd 16384 1024 5
+max_lines: 200000000
+wall_cap_secs: 1800
+elapsed_secs: 922
+lines: 200000000
+gz_bytes: 439243758
+rc: 141

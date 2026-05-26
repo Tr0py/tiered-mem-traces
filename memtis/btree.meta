@@ -1,0 +1,8 @@
+name: btree
+cmd: /home/ziyi/git/arcsim/memtis-traces/bench-src/btree_bench/btree_bench 2000000 20000000 16
+max_lines: 200000000
+wall_cap_secs: 1800
+elapsed_secs: 631
+lines: 200000000
+gz_bytes: 181861697
+rc: 141

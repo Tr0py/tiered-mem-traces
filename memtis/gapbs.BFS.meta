@@ -1,0 +1,8 @@
+name: gapbs.BFS
+cmd: /home/ziyi/git/arcsim/memtis-traces/src/gapbs/bfs -g 17 -n 100
+max_lines: 200000000
+wall_cap_secs: 1800
+elapsed_secs: 1744
+lines: 200000000
+gz_bytes: 360300316
+rc: 141

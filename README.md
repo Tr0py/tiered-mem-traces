@@ -2,8 +2,11 @@
 
 **60 memory access traces** for tiered-memory simulation, covering all 16
 benchmark suites of the [CMU-SAFARI/DAMOV](https://github.com/CMU-SAFARI/DAMOV)
-suite. Each trace preserves load/store/modify classification from
-[Valgrind's lackey tool](https://valgrind.org/docs/manual/lk-manual.html).
+suite, plus **8 MEMTIS-style benchmark traces** (under `memtis/`, Git LFS
+— see § MEMTIS-style benchmark traces) and **1 LLM-inference trace**
+collected from llama2.c (under `llama_inference/`, Git LFS — see § LLM-
+inference trace). Each trace preserves load/store/modify classification
+from [Valgrind's lackey tool](https://valgrind.org/docs/manual/lk-manual.html).
 
 ## Format
 
@@ -21,9 +24,11 @@ M 04038e10,4
 - `<hex_addr>,<size>` = byte address and access size
 - Instruction fetches are excluded; only data accesses are recorded
 
-Total: 97 MB compressed (~4 GB uncompressed).
+Total: ~97 MB compressed (~4 GB uncompressed) for the 60 DAMOV traces,
+plus ~1.94 GB across 8 MEMTIS traces and 323 MB for the llama trace
+(both via Git LFS).
 
-## Traces (60 total, by suite)
+## DAMOV traces (60 total, by suite)
 
 | Trace | Description | Access Pattern | Size |
 |-------|-------------|----------------|-----:|
@@ -104,6 +109,108 @@ Total: 97 MB compressed (~4 GB uncompressed).
 | `stream.Scale` | b[i] = scalar * c[i] | perfectly sequential streaming, no reuse | 3.5M |
 | `stream.Triad` | a[i] = b[i] + scalar * c[i] | perfectly sequential streaming, no reuse | 3.5M |
 
+## MEMTIS-style benchmark traces
+
+Eight additional traces (under `memtis/`, Git LFS) collected from open-
+source analogs of the workloads in MEMTIS (Lee et al., SOSP '23), Table 2.
+Same `<L|S|M> <hex_addr>,<size>` format as the DAMOV traces above, but
+~30–60× larger access counts (200 M per trace; the DAMOV facsimiles are
+0.5–4 M each), giving real iteration / phase structure rather than "first
+few seconds" snapshots.
+
+| Trace | Description | Access pattern | Lines | Pages | Size |
+|-------|-------------|----------------|------:|------:|-----:|
+| `memtis/btree` | TLX `btree_map<u64,u64>`, 2 M keys, 20 M lookups across 16 hot-key phases | phase changes between key windows | 200,000,000 | 6,091 | 174 M |
+| `memtis/gapbs.BFS` | GAP benchmark suite BFS on Kronecker 128 K-vertex graph, 100 BFS sources | per-source frontier sweep, drifting hot set | 200,000,000 | 4,630 | 344 M |
+| `memtis/gapbs.PageRank` | GAP benchmark suite PageRank on Kronecker 128 K-vertex graph, 100 iters | full-vertex stream + scattered neighbor reads | 200,000,000 | 4,629 | 344 M |
+| `memtis/graph500_bfs` | Graph500 reference BFS, scale 17 (128 K vertices) | irregular adjacency-list traversal | 200,000,000 | 3,398 | 63 M |
+| `memtis/linear_sgd` | Synthetic linear-SGD driver, 16 384 × 1 024 dense sample matrix, 5 epochs | per-epoch full-matrix sweep + dense weight RMW | 200,000,000 | 16,547 | 419 M |
+| `memtis/xsbench` | XSBench `-s small -p 5000 -l 100 -g 5000` (Monte Carlo neutron transport) | scattered nuclide-grid lookups | 200,000,000 | 18,520 | 306 M |
+| `memtis/ycsb_kv_A` | `std::unordered_map` YCSB-A, 1 M keys, 20 M ops, **Zipfian θ=0.99**, 50/50 R/W | hot-bucket scattered hashmap traffic | 200,000,000 | 16,186 | 143 M |
+| `memtis/ycsb_kv_C` | `std::unordered_map` YCSB-C, 1 M keys, 20 M ops, **Zipfian θ=0.99**, 100 % reads | hot-bucket scattered hashmap reads | 200,000,000 | 16,186 | 143 M |
+
+Each trace ships with a `*.meta` sidecar recording the exact command, line
+cap, elapsed wall time, gzipped size, and valgrind exit code (141 = SIGPIPE
+from `head -n` closing the pipe at the 200 M-line cap; 0 = the benchmark
+finished on its own; 139 = the underlying binary tripped a check inside
+valgrind near cap time — trace is still gzip-valid and at the full line
+count).
+
+Working sets span 13–72 MiB (vs the ≤12 MiB working sets of the DAMOV
+facsimiles), and `ycsb_kv_A` / `ycsb_kv_C` are byte-for-byte identical at
+the page level — the underlying hashmap touches the same buckets in both
+cases; the read/write ratio difference is internal to the bucket reads.
+
+### Reproducing
+
+The collection harness (benchmark setup, valgrind/lackey wrappers, line/
+wall caps, characterization scripts) lives in the arcsim repo:
+[`memtis-traces/`](https://github.com/alcriceedu/arcsim/tree/main/memtis-traces).
+See `memtis-traces/README.md` there for per-workload recipes and the
+custom drivers (`bench-src/btree_bench/`, `bench-src/ycsb_kv/`,
+`bench-src/linear_sgd/`).
+
+## LLM-inference trace
+
+One extra trace lives under `llama_inference/` and is stored via **Git LFS**
+(the file is ~323 MB compressed). It is **not** part of the 60-trace DAMOV
+set above — different workload class, different scale.
+
+| Trace | Description | Access pattern | Size |
+|-------|-------------|----------------|-----:|
+| `llama_inference/llama2c_stories15M_n3` | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) inference, TinyStories-15M architecture (dim=288, hidden=768, 6 layers, vocab=32000), `n=3` forward passes (BOS prefill + 2 generated tokens, seed=42), random `N(0, 0.02)` weights — memory pattern is determined by tensor shapes and access order, not weight values, so it is structurally identical to a real TinyStories-15M checkpoint | continuous hot scratchpad (RunState) + linear weight-tensor sweeps + KV-cache growth per generated token | 323M |
+
+Collection scale: 144,868,169 data accesses, 15,709 unique 4 KiB pages
+(61.4 MiB footprint), captured under
+`valgrind --tool=lackey --trace-mem=yes` with instruction fetches filtered
+out. Loads 85.8 %, stores 13.7 %, modifies 0.4 %.
+
+### Access pattern (annotated)
+
+![llama2c stories15M, n=3 annotated VA](docs/llama_inference/llama2c_stories15M_n3_annotated.png)
+
+The y-axis is the actual virtual address (stack at 131 GiB excluded — 3
+pages absorbing 13.9 % of all accesses). Region boundaries are ground
+truth from `/proc/self/maps` plus an instrumented `run.c` that printed
+every weight / RunState / KV pointer under valgrind. Three forward passes
+are visible as three structurally identical segments (dotted vertical
+guides at ~46 M / ~84 M / ~122 M accesses):
+
+- **64–66 MiB — HEAP / RunState scratchpad.** A continuous horizontal band
+  touched throughout every pass. Holds `x`, `xb`, `xb2`, `q`, `att`,
+  `logits` and other activation buffers. ~11 pages absorb ~50 % of the
+  full trace's traffic; even with stack excluded, ~63 pages cover 50 % of
+  the remaining accesses.
+- **75–110 MiB — `wcls` / `token_embedding` classifier sweep.** The large
+  diagonal climbing once per pass is the final `logits = matmul(x, wcls)`
+  projection against the 32,000-entry vocabulary (`wcls` is shared with
+  `token_embedding_table`). A 36.6 MiB linear scan at the end of every
+  forward pass.
+- **110–134 MiB — per-layer weight matmuls.** The "rainfall" pattern is
+  six layers' worth of `wq`, `wk`, `wv`, `wo`, `w1`, `w2`, `w3` sweeps.
+  Each cold weight page is touched once per forward pass.
+- **133–137 MiB — KV cache.** `key_cache` + `value_cache` (3.4 MiB total).
+  Pass 1 is pure stores; passes 2 and 3 have growing reads as the
+  attention softmax iterates over an increasing number of KV slots.
+- **131 GiB — stack (filtered in the figure).** 3 pages, 13.9 % of all
+  accesses; valgrind redirects the user stack to the top of its managed
+  address space.
+
+The combination of a tiny continuously-hot scratchpad and a large
+once-per-pass cold-weight sweep is the canonical heavy-tailed access
+pattern of LLM inference: cache-policy choice barely matters at small
+cache sizes because the hot set fits in any cache and the cold weight
+scan is unaffected by eviction order.
+
+### Reproducing
+
+The collection pipeline (random-weight `model.bin` generator, valgrind
+lackey wrapper, analyzer, plotter) lives in the arcsim repo:
+[`scripts/llama_traces/`](https://github.com/alcriceedu/arcsim/tree/main/scripts/llama_traces).
+See `scripts/llama_traces/README.md` for the full repro recipe and
+`scripts/llama_traces/REPORT_stories15M.md` for the original
+characterization run.
+
 ## How Traces Were Collected
 
 Each trace comes from a small self-contained C facsimile that reproduces the
@@ -126,7 +233,7 @@ kernels, but absolute access counts differ from production-scale runs.
 13 long-running workloads were SIGKILL-capped at ~25 min wall time once the
 trace had grown to 25-200M accesses.
 
-## Suite Coverage
+## DAMOV suite coverage
 
 | Suite | DAMOV Functions | Traces Here |
 |-------|----------------:|------------:|
